@@ -1285,6 +1285,377 @@ def cewl():
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
+@app.route("/api/tools/snmpcheck", methods=["POST"])
+def snmpcheck():
+    """Enumerate SNMP information with snmp-check."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        community = params.get("community", "public")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("snmpcheck called without target parameter")
+            return jsonify({"error": "Target parameter is required"}), 400
+
+        # Note: the `snmpcheck` binary is broken on Kali (missing Perl
+        # Term::ReadKey); snmp-check is the working equivalent.
+        command = ["snmp-check", "-c", community]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(target)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in snmpcheck endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/sslyze", methods=["POST"])
+def sslyze():
+    """Run a deep TLS/SSL audit with sslyze."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("sslyze called without target parameter")
+            return jsonify({"error": "Target parameter is required (host or host:port)"}), 400
+
+        command = ["sslyze"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(target)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in sslyze endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/wapiti", methods=["POST"])
+def wapiti():
+    """Scan a web application for vulnerabilities with wapiti."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        modules = params.get("modules", "")
+        level = params.get("level", "")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("wapiti called without URL parameter")
+            return jsonify({"error": "URL parameter is required"}), 400
+
+        if level and not re.match(r'^\d+$', str(level)):
+            return jsonify({"error": "Invalid level; must be a number"}), 400
+
+        command = ["wapiti", "-u", url]
+        if modules:
+            command += ["-m", modules]
+        if level:
+            command += ["-l", str(level)]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in wapiti endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/smtp_user_enum", methods=["POST"])
+def smtp_user_enum():
+    """Enumerate SMTP users with smtp-user-enum."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        username = params.get("username", "")
+        username_file = params.get("username_file", "")
+        mode = params.get("mode", "VRFY")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("smtp-user-enum called without target parameter")
+            return jsonify({"error": "Target parameter is required"}), 400
+
+        if not (username or username_file):
+            return jsonify({"error": "username or username_file is required"}), 400
+
+        if mode not in ["EXPN", "VRFY", "RCPT"]:
+            return jsonify({"error": "Invalid mode. Must be one of: EXPN, VRFY, RCPT"}), 400
+
+        command = ["smtp-user-enum", "-t", target, "-M", mode]
+        if username:
+            command += ["-u", username]
+        elif username_file:
+            command += ["-U", username_file]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in smtp_user_enum endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+# certipy-ad subcommands exposed through the MCP: non-interactive AD CS
+# enumeration/abuse only. `relay` is excluded because it runs a listener that
+# would hang a one-shot API call.
+CERTIPY_ALLOWED = [
+    "find", "auth", "req", "ca", "cert", "parse", "template",
+    "account", "shadow", "forge",
+]
+
+@app.route("/api/tools/certipy", methods=["POST"])
+def certipy():
+    """Run an allow-listed certipy-ad (AD CS) subcommand."""
+    try:
+        params = request.json
+        command_name = params.get("command", "")
+        additional_args = params.get("additional_args", "")
+
+        if not command_name:
+            logger.warning("certipy called without command parameter")
+            return jsonify({"error": "Command parameter is required"}), 400
+
+        if command_name not in CERTIPY_ALLOWED:
+            logger.warning(f"Disallowed certipy command: {command_name}")
+            return jsonify({
+                "error": f"Invalid or unsupported command: {command_name}. Allowed: {', '.join(CERTIPY_ALLOWED)}"
+            }), 400
+
+        command = ["certipy-ad", command_name]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in certipy endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/bloodhound", methods=["POST"])
+def bloodhound():
+    """Collect Active Directory data for BloodHound with bloodhound-python."""
+    try:
+        params = request.json
+        domain = params.get("domain", "")
+        username = params.get("username", "")
+        password = params.get("password", "")
+        nameserver = params.get("nameserver", "")
+        collection_method = params.get("collection_method", "Default")
+        additional_args = params.get("additional_args", "")
+
+        if not domain:
+            logger.warning("bloodhound called without domain parameter")
+            return jsonify({"error": "Domain parameter is required"}), 400
+
+        command = ["bloodhound-python", "-d", domain, "-c", collection_method]
+        if username:
+            command += ["-u", username]
+        if password:
+            command += ["-p", password]
+        if nameserver:
+            command += ["-ns", nameserver]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in bloodhound endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/amass", methods=["POST"])
+def amass():
+    """Enumerate subdomains with amass."""
+    try:
+        params = request.json
+        domain = params.get("domain", "")
+        mode = params.get("mode", "passive")
+        additional_args = params.get("additional_args", "")
+
+        if not domain:
+            logger.warning("amass called without domain parameter")
+            return jsonify({"error": "Domain parameter is required"}), 400
+
+        if mode not in ["passive", "active"]:
+            return jsonify({"error": "Invalid mode. Must be one of: passive, active"}), 400
+
+        command = ["amass", "enum", "-d", domain, "-" + mode]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in amass endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/pdfid", methods=["POST"])
+def pdfid():
+    """Triage a PDF for suspicious keywords with pdfid."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("pdfid called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        command = ["pdfid"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in pdfid endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/pdf_parser", methods=["POST"])
+def pdf_parser():
+    """Inspect PDF objects/structure with pdf-parser."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        search = params.get("search", "")
+        obj = params.get("object", "")
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("pdf-parser called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        command = ["pdf-parser"]
+        if search:
+            command += ["-s", search]
+        if obj:
+            command += ["-o", obj]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in pdf_parser endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/rabin2", methods=["POST"])
+def rabin2():
+    """Inspect a binary (headers, imports, strings) with rabin2."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("rabin2 called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        # rabin2 needs at least one action flag; default to -I (binary info)
+        command = ["rabin2"] + (shlex.split(additional_args) if additional_args else ["-I"])
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in rabin2 endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/scalpel", methods=["POST"])
+def scalpel():
+    """Carve files from an image/blob with scalpel."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        output_dir = params.get("output_dir", "")
+        config = params.get("config", "")
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("scalpel called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        if not output_dir:
+            return jsonify({"error": "output_dir parameter is required"}), 400
+
+        command = ["scalpel", "-o", output_dir]
+        if config:
+            command += ["-c", config]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in scalpel endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/msfvenom", methods=["POST"])
+def msfvenom():
+    """Generate a payload with msfvenom."""
+    try:
+        params = request.json
+        payload = params.get("payload", "")
+        fmt = params.get("format", "")
+        options = params.get("options", {})
+        out_file = params.get("out_file", "")
+        additional_args = params.get("additional_args", "")
+
+        if not payload:
+            logger.warning("msfvenom called without payload parameter")
+            return jsonify({"error": "Payload parameter is required"}), 400
+
+        if not fmt:
+            return jsonify({"error": "format parameter is required"}), 400
+
+        if not re.match(r'^[a-zA-Z0-9/_-]+$', payload):
+            return jsonify({"error": "Invalid payload name"}), 400
+
+        if not re.match(r'^[a-zA-Z0-9_-]+$', fmt):
+            return jsonify({"error": "Invalid format"}), 400
+
+        command = ["msfvenom", "-p", payload]
+
+        for key, value in options.items():
+            if not re.match(r'^[a-zA-Z0-9_]+$', str(key)):
+                return jsonify({"error": f"Invalid option key: {key}"}), 400
+            command.append(f"{key}={value}")
+
+        command += ["-f", fmt]
+
+        if out_file:
+            command += ["-o", out_file]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in msfvenom endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+
 # Health check endpoint
 @app.route("/health", methods=["GET"])
 def health_check():

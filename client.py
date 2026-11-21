@@ -867,6 +867,239 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         }
         return kali_client.safe_post("api/tools/cewl", data)
 
+    @mcp.tool(name="snmpcheck_scan")
+    def snmpcheck_scan(target: str, community: str = "public", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Enumerate SNMP information from a host (runs snmp-check).
+
+        Args:
+            target: Target IP address (snmp-check does NOT resolve hostnames —
+                    pass an IP, not a domain name)
+            community: SNMP community string (default "public")
+            additional_args: Additional snmp-check arguments (e.g. "-v 2c", "-p 161")
+
+        Returns:
+            SNMP enumeration (system, network, processes, etc.)
+        """
+        data = {"target": target, "community": community, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/snmpcheck", data)
+
+    @mcp.tool(name="sslyze_scan")
+    def sslyze_scan(target: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Run a deep TLS/SSL audit with sslyze.
+
+        Args:
+            target: Target as host or host:port
+            additional_args: Additional sslyze arguments (e.g. "--mozilla_config intermediate",
+                             "--json_out out.json", "--starttls smtp")
+
+        Returns:
+            Supported protocols, cipher suites, cert info, and known vulns
+        """
+        data = {"target": target, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/sslyze", data)
+
+    @mcp.tool(name="wapiti_scan")
+    def wapiti_scan(url: str, modules: str = "", level: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Scan a web application for vulnerabilities with wapiti.
+
+        Args:
+            url: The base URL defining the scan scope
+            modules: Comma-separated modules to run (-m), e.g. "sql,xss,exec"
+            level: Scan level (-l)
+            additional_args: Additional wapiti arguments
+
+        Returns:
+            Vulnerability findings. Crawls and attacks, so it can be slow and may
+            hit the server timeout (partial results are returned).
+        """
+        data = {"url": url, "modules": modules, "level": level, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/wapiti", data)
+
+    @mcp.tool(name="smtp_user_enum")
+    def smtp_user_enum(target: str, username: str = "", username_file: str = "", mode: str = "VRFY", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Enumerate valid SMTP users with smtp-user-enum.
+
+        Args:
+            target: Target host running SMTP
+            username: Single username to test
+            username_file: Path to a file of usernames (provide this or username)
+            mode: Guessing method — EXPN, VRFY (default), or RCPT
+            additional_args: Additional smtp-user-enum arguments (e.g. "-p 25")
+
+        Returns:
+            Usernames that the SMTP server confirms exist
+        """
+        data = {
+            "target": target,
+            "username": username,
+            "username_file": username_file,
+            "mode": mode,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/smtp_user_enum", data)
+
+    @mcp.tool(name="certipy_run")
+    def certipy_run(command: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Run an allow-listed certipy-ad (AD Certificate Services) subcommand.
+
+        Allowed commands: find, auth, req, ca, cert, parse, template, account,
+        shadow, forge. The `relay` listener is intentionally NOT exposed (it would
+        hang a one-shot API call).
+
+        Args:
+            command: The certipy subcommand (e.g. "find")
+            additional_args: Arguments for the subcommand (e.g.
+                             "-u user@domain -p pass -dc-ip 10.0.0.1 -vulnerable")
+
+        Returns:
+            Subcommand output (e.g. vulnerable certificate templates)
+        """
+        data = {"command": command, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/certipy", data)
+
+    @mcp.tool(name="bloodhound_ingest")
+    def bloodhound_ingest(domain: str, username: str = "", password: str = "", nameserver: str = "", collection_method: str = "Default", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Collect Active Directory data for BloodHound (runs bloodhound-python).
+
+        Args:
+            domain: The target AD domain (FQDN)
+            username: Domain username
+            password: Password (or use --hashes via additional_args)
+            nameserver: DNS server to use (-ns), usually the DC IP
+            collection_method: What to collect (-c): Default, All, DCOnly, Session, ...
+            additional_args: Additional arguments (e.g. "-dc dc01.domain.local", "-k")
+
+        Returns:
+            Collection status. Writes BloodHound JSON files to the server's working
+            directory.
+        """
+        data = {
+            "domain": domain,
+            "username": username,
+            "password": password,
+            "nameserver": nameserver,
+            "collection_method": collection_method,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/bloodhound", data)
+
+    @mcp.tool(name="amass_enum")
+    def amass_enum(domain: str, mode: str = "passive", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Enumerate subdomains for a domain with amass.
+
+        Args:
+            domain: The target domain
+            mode: "passive" (default, OSINT only) or "active" (also resolves/probes)
+            additional_args: Additional amass enum arguments (e.g. "-brute", "-timeout 10")
+
+        Returns:
+            Discovered subdomains. Can be slow; relies on the server timeout cap.
+        """
+        data = {"domain": domain, "mode": mode, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/amass", data)
+
+    @mcp.tool(name="pdfid_scan")
+    def pdfid_scan(file: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Triage a PDF for suspicious keywords (JS, OpenAction, etc.) with pdfid.
+
+        Args:
+            file: Path to the PDF on the server
+            additional_args: Additional pdfid arguments
+
+        Returns:
+            Counts of PDF keywords indicating potential maliciousness
+        """
+        data = {"file": file, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/pdfid", data)
+
+    @mcp.tool(name="pdf_parser")
+    def pdf_parser(file: str, search: str = "", object: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Inspect PDF objects and structure with pdf-parser.
+
+        Args:
+            file: Path to the PDF on the server
+            search: String to search for in the PDF (-s)
+            object: Object id to display (-o)
+            additional_args: Additional pdf-parser arguments (e.g. "--stats", "-f" to filter)
+
+        Returns:
+            Matching objects / structure details
+        """
+        data = {"file": file, "search": search, "object": object, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/pdf_parser", data)
+
+    @mcp.tool(name="rabin2_info")
+    def rabin2_info(file: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Inspect a binary with rabin2 (radare2). Defaults to binary info (-I).
+
+        Args:
+            file: Path to the binary on the server
+            additional_args: rabin2 flags to use instead of the default -I, e.g.
+                             "-z" (strings), "-i" (imports), "-s" (symbols), "-e" (entrypoint)
+
+        Returns:
+            Requested binary metadata
+        """
+        data = {"file": file, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/rabin2", data)
+
+    @mcp.tool(name="scalpel_carve")
+    def scalpel_carve(file: str, output_dir: str, config: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Carve files from a disk/memory image or blob with scalpel.
+
+        Args:
+            file: Path to the image/blob to carve
+            output_dir: Directory for carved output — must not already exist/contain output
+            config: Path to a scalpel config (-c). Required in practice: the default
+                    /etc/scalpel/scalpel.conf has every file type commented out, so
+                    supply a config with the desired patterns uncommented.
+            additional_args: Additional scalpel arguments
+
+        Returns:
+            Carving results. Writes recovered files under output_dir on the server.
+        """
+        data = {"file": file, "output_dir": output_dir, "config": config, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/scalpel", data)
+
+    @mcp.tool(name="msfvenom_generate")
+    def msfvenom_generate(payload: str, format: str, options: Dict[str, Any] = {}, out_file: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Generate a payload with msfvenom.
+
+        Args:
+            payload: Payload path, e.g. "windows/meterpreter/reverse_tcp" or
+                     "cmd/unix/reverse_bash"
+            format: Output format (-f), e.g. "exe", "raw", "python", "elf", "psh"
+            options: Payload options as key=value, e.g. {"LHOST": "10.0.0.1", "LPORT": 4444}
+            out_file: Output file path (-o). Set this for binary formats (exe/elf);
+                      without it the payload is written to stdout (fine for text formats).
+            additional_args: Additional msfvenom arguments (e.g. "-e x86/shikata_ga_nai",
+                             "-b '\\x00'", "-i 3")
+
+        Returns:
+            Generation result (payload bytes/text on stdout, or a confirmation when
+            out_file is set)
+        """
+        data = {
+            "payload": payload,
+            "format": format,
+            "options": options,
+            "out_file": out_file,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/msfvenom", data)
+
     @mcp.tool(name="server_health")
     def server_health() -> Dict[str, Any]:
         """
