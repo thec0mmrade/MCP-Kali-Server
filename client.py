@@ -398,6 +398,193 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         }
         return kali_client.safe_post("api/tools/enum4linux", data)
 
+    @mcp.tool(name="nuclei_scan")
+    def nuclei_scan(target: str, severity: str = "", tags: str = "", templates: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute a Nuclei template-based vulnerability scan.
+
+        Args:
+            target: The target URL or host to scan
+            severity: Comma-separated severities to include (e.g. "critical,high")
+            tags: Comma-separated template tags to run (e.g. "cve,tech")
+            templates: Path to a template or template directory (-t)
+            additional_args: Additional Nuclei arguments
+
+        Returns:
+            Scan results. Note: a full scan can be slow and may hit the server
+            timeout (partial results are returned). If templates are not yet
+            installed, run `nuclei -update-templates` on the server once.
+        """
+        data = {
+            "target": target,
+            "severity": severity,
+            "tags": tags,
+            "templates": templates,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/nuclei", data)
+
+    @mcp.tool(name="netexec_exec")
+    def netexec_exec(protocol: str, target: str, username: str = "", password: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute netexec (nxc) for network enumeration/execution.
+
+        Args:
+            protocol: One of smb, ldap, ssh, winrm, mssql, rdp, ftp, nfs, wmi, vnc
+            target: Target IP, hostname, or CIDR range
+            username: Username (or path to a user file via additional_args -u)
+            password: Password or NTLM hash
+            additional_args: Additional nxc arguments (e.g. "--shares", "-H <hash>")
+
+        Returns:
+            Enumeration/execution results
+        """
+        data = {
+            "protocol": protocol,
+            "target": target,
+            "username": username,
+            "password": password,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/netexec", data)
+
+    @mcp.tool(name="whatweb_scan")
+    def whatweb_scan(url: str, aggression: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute WhatWeb web technology fingerprinting.
+
+        Args:
+            url: The target URL
+            aggression: Aggression level — 1 (stealthy), 3 (aggressive), 4 (heavy)
+            additional_args: Additional WhatWeb arguments
+
+        Returns:
+            Fingerprinting results
+        """
+        data = {
+            "url": url,
+            "aggression": aggression,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/whatweb", data)
+
+    @mcp.tool(name="feroxbuster_scan")
+    def feroxbuster_scan(url: str, wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute feroxbuster recursive content discovery.
+
+        Args:
+            url: The target URL
+            wordlist: Path to wordlist file
+            additional_args: Additional feroxbuster arguments (e.g. "-d 2" for depth,
+                             "-k" to ignore TLS cert errors, "-x php,html" for extensions)
+
+        Returns:
+            Discovery results
+        """
+        data = {
+            "url": url,
+            "wordlist": wordlist,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/feroxbuster", data)
+
+    @mcp.tool(name="sslscan_scan")
+    def sslscan_scan(target: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute sslscan to audit a TLS/SSL service.
+
+        Args:
+            target: Target as host or host:port (defaults to port 443)
+            additional_args: Additional sslscan arguments
+
+        Returns:
+            Supported protocols, cipher suites, and certificate details
+        """
+        data = {
+            "target": target,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/sslscan", data)
+
+    @mcp.tool(name="hashcat_crack")
+    def hashcat_crack(
+        hash_file: str,
+        hash_type: str,
+        attack_mode: str = "0",
+        wordlist: str = "/usr/share/wordlists/rockyou.txt",
+        additional_args: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Execute hashcat offline hash cracking.
+
+        Args:
+            hash_file: Path to the file containing the hash(es)
+            hash_type: Numeric hashcat mode (-m), e.g. 0=MD5, 100=SHA1, 1000=NTLM
+            attack_mode: Numeric attack mode (-a), 0=straight (default), 3=brute-force
+            wordlist: Path to wordlist (for straight mode) or a mask string
+            additional_args: Additional hashcat arguments (e.g. "--force" on CPU-only
+                             hosts, "--potfile-disable", "--show")
+
+        Returns:
+            Cracking results. Note: rockyou.txt ships gzipped on Kali — gunzip it
+            or pass another wordlist.
+        """
+        data = {
+            "hash_file": hash_file,
+            "hash_type": hash_type,
+            "attack_mode": attack_mode,
+            "wordlist": wordlist,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/hashcat", data)
+
+    @mcp.tool(name="masscan_scan")
+    def masscan_scan(target: str, ports: str = "1-1000", rate: str = "1000", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute masscan fast port discovery.
+
+        Args:
+            target: Target IP or CIDR range. masscan does NOT resolve hostnames —
+                    pass an IP/CIDR, not a domain name.
+            ports: Port or port range (e.g. "80,443" or "1-65535")
+            rate: Packets per second
+            additional_args: Additional masscan arguments
+
+        Returns:
+            Open ports. Note: masscan needs root (raw sockets); if the API server
+            is not running as root this returns a permission error.
+        """
+        data = {
+            "target": target,
+            "ports": ports,
+            "rate": rate,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/masscan", data)
+
+    @mcp.tool(name="dnsrecon_scan")
+    def dnsrecon_scan(domain: str, scan_type: str = "", name_server: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute dnsrecon DNS enumeration.
+
+        Args:
+            domain: The target domain
+            scan_type: Enumeration type (-t), e.g. std, brt, axfr, srv, zonewalk
+            name_server: Specific name server to use (-n)
+            additional_args: Additional dnsrecon arguments (e.g. "-D <dict>" for brt)
+
+        Returns:
+            DNS enumeration results
+        """
+        data = {
+            "domain": domain,
+            "scan_type": scan_type,
+            "name_server": name_server,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/dnsrecon", data)
+
     @mcp.tool(name="server_health")
     def server_health() -> Dict[str, Any]:
         """
