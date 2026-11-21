@@ -932,6 +932,359 @@ def tshark():
         }), 500
 
 
+@app.route("/api/tools/searchsploit", methods=["POST"])
+def searchsploit():
+    """Search the local Exploit-DB archive with searchsploit."""
+    try:
+        params = request.json
+        query = params.get("query", "")
+        additional_args = params.get("additional_args", "")
+
+        if not query:
+            logger.warning("searchsploit called without query parameter")
+            return jsonify({"error": "Query parameter is required"}), 400
+
+        command = ["searchsploit"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command += shlex.split(query)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in searchsploit endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/smbmap", methods=["POST"])
+def smbmap():
+    """Enumerate SMB shares and access with smbmap."""
+    try:
+        params = request.json
+        host = params.get("host", "")
+        username = params.get("username", "")
+        password = params.get("password", "")
+        domain = params.get("domain", "")
+        share = params.get("share", "")
+        additional_args = params.get("additional_args", "")
+
+        if not host:
+            logger.warning("smbmap called without host parameter")
+            return jsonify({"error": "Host parameter is required"}), 400
+
+        command = ["smbmap", "-H", host]
+        if username:
+            command += ["-u", username]
+        if password:
+            command += ["-p", password]
+        if domain:
+            command += ["-d", domain]
+        if share:
+            command += ["-s", share]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in smbmap endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/commix", methods=["POST"])
+def commix():
+    """Automated OS command-injection exploitation with commix."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        data = params.get("data", "")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("commix called without URL parameter")
+            return jsonify({"error": "URL parameter is required"}), 400
+
+        command = ["commix", "-u", url, "--batch"]
+        if data:
+            command += ["--data", data]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in commix endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/httpx", methods=["POST"])
+def httpx():
+    """Fast HTTP probing (status/title/tech) with httpx-toolkit."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("httpx called without target parameter")
+            return jsonify({"error": "Target parameter is required"}), 400
+
+        # -nc no color, -duc disable update check
+        command = ["httpx-toolkit", "-u", target, "-sc", "-title", "-td", "-nc", "-duc"]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in httpx endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/theharvester", methods=["POST"])
+def theharvester():
+    """Gather OSINT (emails/subdomains) with theHarvester."""
+    try:
+        params = request.json
+        domain = params.get("domain", "")
+        source = params.get("source", "duckduckgo")
+        limit = params.get("limit", "")
+        additional_args = params.get("additional_args", "")
+
+        if not domain:
+            logger.warning("theHarvester called without domain parameter")
+            return jsonify({"error": "Domain parameter is required"}), 400
+
+        if limit and not re.match(r'^\d+$', str(limit)):
+            return jsonify({"error": "Invalid limit; must be a number"}), 400
+
+        command = ["theHarvester", "-d", domain, "-b", source]
+        if limit:
+            command += ["-l", str(limit)]
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in theharvester endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+# impacket scripts exposed through the MCP: non-interactive enumeration and
+# credential tools only. Interactive shells (psexec, wmiexec, mssqlclient, ...)
+# are intentionally excluded because they would hang a one-shot API call.
+IMPACKET_ALLOWED = [
+    "secretsdump", "GetNPUsers", "GetUserSPNs", "getTGT", "getST",
+    "lookupsid", "samrdump", "rpcdump", "rpcmap", "findDelegation",
+    "GetADUsers", "GetADComputers", "DumpNTLMInfo", "getArch", "net",
+]
+
+@app.route("/api/tools/impacket", methods=["POST"])
+def impacket():
+    """Run an allow-listed impacket script."""
+    try:
+        params = request.json
+        script = params.get("script", "")
+        target = params.get("target", "")
+        additional_args = params.get("additional_args", "")
+
+        if not script:
+            logger.warning("impacket called without script parameter")
+            return jsonify({"error": "Script parameter is required"}), 400
+
+        if script not in IMPACKET_ALLOWED:
+            logger.warning(f"Disallowed impacket script: {script}")
+            return jsonify({
+                "error": f"Invalid or unsupported script: {script}. Allowed: {', '.join(IMPACKET_ALLOWED)}"
+            }), 400
+
+        command = ["impacket-" + script]
+        if additional_args:
+            command += shlex.split(additional_args)
+        if target:
+            command.append(target)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in impacket endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/wafw00f", methods=["POST"])
+def wafw00f():
+    """Fingerprint web application firewalls with wafw00f."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("wafw00f called without URL parameter")
+            return jsonify({"error": "URL parameter is required"}), 400
+
+        command = ["wafw00f"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(url)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in wafw00f endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/hashid", methods=["POST"])
+def hashid():
+    """Identify hash types with hashid (shows hashcat and john modes)."""
+    try:
+        params = request.json
+        hash_value = params.get("hash_value", "")
+        additional_args = params.get("additional_args", "")
+
+        if not hash_value:
+            logger.warning("hashid called without hash_value parameter")
+            return jsonify({"error": "hash_value parameter is required"}), 400
+
+        command = ["hashid", "-m", "-j"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(hash_value)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in hashid endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/exiftool", methods=["POST"])
+def exiftool():
+    """Extract file metadata with exiftool."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("exiftool called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        command = ["exiftool"]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in exiftool endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/binwalk", methods=["POST"])
+def binwalk():
+    """Analyze binaries/firmware for embedded data with binwalk."""
+    try:
+        params = request.json
+        file_path = params.get("file", "")
+        extract = params.get("extract", False)
+        additional_args = params.get("additional_args", "")
+
+        if not file_path:
+            logger.warning("binwalk called without file parameter")
+            return jsonify({"error": "File parameter is required"}), 400
+
+        command = ["binwalk"]
+        if extract:
+            command.append("-e")
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(file_path)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in binwalk endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/steghide", methods=["POST"])
+def steghide():
+    """Extract data from or inspect a steganographic file with steghide."""
+    try:
+        params = request.json
+        mode = params.get("mode", "")
+        cover_file = params.get("cover_file", "")
+        passphrase = params.get("passphrase", "")
+        extract_file = params.get("extract_file", "")
+        additional_args = params.get("additional_args", "")
+
+        if mode not in ["extract", "info"]:
+            logger.warning(f"Invalid steghide mode: {mode}")
+            return jsonify({"error": "mode is required and must be 'extract' or 'info'"}), 400
+
+        if not cover_file:
+            logger.warning("steghide called without cover_file parameter")
+            return jsonify({"error": "cover_file parameter is required"}), 400
+
+        if mode == "info":
+            # -p "" avoids an interactive passphrase prompt that would hang
+            command = ["steghide", "info", cover_file, "-p", passphrase]
+        else:
+            command = ["steghide", "extract", "-sf", cover_file, "-p", passphrase]
+            if extract_file:
+                command += ["-xf", extract_file]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in steghide endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route("/api/tools/cewl", methods=["POST"])
+def cewl():
+    """Generate a wordlist by crawling a site with cewl."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        depth = params.get("depth", "")
+        min_length = params.get("min_length", "")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("cewl called without URL parameter")
+            return jsonify({"error": "URL parameter is required"}), 400
+
+        if depth and not re.match(r'^\d+$', str(depth)):
+            return jsonify({"error": "Invalid depth; must be a number"}), 400
+
+        if min_length and not re.match(r'^\d+$', str(min_length)):
+            return jsonify({"error": "Invalid min_length; must be a number"}), 400
+
+        command = ["cewl"]
+        if depth:
+            command += ["-d", str(depth)]
+        if min_length:
+            command += ["-m", str(min_length)]
+        if additional_args:
+            command += shlex.split(additional_args)
+        command.append(url)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in cewl endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+
 # Health check endpoint
 @app.route("/health", methods=["GET"])
 def health_check():
