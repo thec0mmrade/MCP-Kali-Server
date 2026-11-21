@@ -156,6 +156,45 @@ Edit:
 
 - Simply add an MCP with the command `python3 /absolute/path/to/client.py --server http://LINUX_IP:5000` and it will automatically generate the needed configuration files.
 
+#### Configuration for Claude Code (CLI):
+
+Register `client.py` as a stdio MCP server with `claude mcp add`. Use the
+interpreter from your virtualenv so it picks up the pinned dependencies:
+
+```bash
+claude mcp add kali --scope user -- \
+  /absolute/path/to/MCP-Kali-Server/.venv/bin/python \
+  /absolute/path/to/MCP-Kali-Server/client.py --server http://127.0.0.1:5000
+```
+
+- `--scope user` makes it available in every project; use `--scope local` to
+  limit it to the current project.
+- The tools appear as `mcp__kali__*` after you restart Claude Code.
+- Manage it with `claude mcp list`, `claude mcp get kali`, and
+  `claude mcp remove kali -s user`.
+
+The `server.py` API must be running for the tools to execute (`client.py` only
+bridges to it). To avoid keeping a terminal open, point Claude Code at the
+launcher below instead of `client.py`.
+
+#### Auto-starting the API server (`run-mcp.sh`)
+
+`run-mcp.sh` is a small launcher that ensures `server.py` is running before it
+hands off to the MCP client. When your MCP client spawns it, it starts the API
+server detached (only if `/health` isn't already answering), then `exec`s
+`client.py`. Register it in place of `client.py`:
+
+```bash
+claude mcp add kali --scope user -- /absolute/path/to/MCP-Kali-Server/run-mcp.sh
+```
+
+- The API server runs detached and survives after the client exits (it stays
+  warm for the next run); logs go to `~/.local/state/mcp-kali-server/server.log`.
+- Stop it with `kill $(cat ~/.local/state/mcp-kali-server/server.pid)`.
+- Override the API URL with the `KALI_API_URL` environment variable (default
+  `http://127.0.0.1:5000`); the launcher derives the server's bind host/port from
+  it. It uses the project `.venv` if present, else the system `python3`.
+
 ## 🔮 Other Possibilities
 
 There are more possibilities than described since the AI model can now execute commands on the terminal. Here are some examples:
