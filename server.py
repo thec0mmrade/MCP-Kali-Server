@@ -554,13 +554,310 @@ def enum4linux():
             "error": f"Server error: {str(e)}"
         }), 500
 
+@app.route("/api/tools/nuclei", methods=["POST"])
+def nuclei():
+    """Execute a nuclei template-based vulnerability scan."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        severity = params.get("severity", "")
+        tags = params.get("tags", "")
+        templates = params.get("templates", "")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("Nuclei called without target parameter")
+            return jsonify({
+                "error": "Target parameter is required"
+            }), 400
+
+        # -duc disables the auto update check, -nc disables ANSI color codes
+        command = ["nuclei", "-u", target, "-duc", "-nc", "-silent"]
+
+        if severity:
+            command += ["-severity", severity]
+
+        if tags:
+            command += ["-tags", tags]
+
+        if templates:
+            command += ["-t", templates]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in nuclei endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/netexec", methods=["POST"])
+def netexec():
+    """Execute netexec (nxc) against a target for a given protocol."""
+    try:
+        params = request.json
+        protocol = params.get("protocol", "")
+        target = params.get("target", "")
+        username = params.get("username", "")
+        password = params.get("password", "")
+        additional_args = params.get("additional_args", "")
+
+        if not protocol or not target:
+            logger.warning("netexec called without protocol or target parameter")
+            return jsonify({
+                "error": "Protocol and target parameters are required"
+            }), 400
+
+        valid_protocols = ["smb", "ldap", "ssh", "winrm", "mssql", "rdp", "ftp", "nfs", "wmi", "vnc"]
+        if protocol not in valid_protocols:
+            logger.warning(f"Invalid netexec protocol: {protocol}")
+            return jsonify({
+                "error": f"Invalid protocol: {protocol}. Must be one of: {', '.join(valid_protocols)}"
+            }), 400
+
+        command = ["nxc", protocol, target]
+
+        if username:
+            command += ["-u", username]
+
+        if password:
+            command += ["-p", password]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in netexec endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/whatweb", methods=["POST"])
+def whatweb():
+    """Execute whatweb web technology fingerprinting."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        aggression = params.get("aggression", "")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("WhatWeb called without URL parameter")
+            return jsonify({
+                "error": "URL parameter is required"
+            }), 400
+
+        command = ["whatweb"]
+
+        if aggression:
+            # whatweb aggression levels: 1 (stealthy), 3 (aggressive), 4 (heavy)
+            if str(aggression) not in ["1", "3", "4"]:
+                return jsonify({
+                    "error": "Invalid aggression level. Must be one of: 1, 3, 4"
+                }), 400
+            command += ["-a", str(aggression)]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        command.append(url)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in whatweb endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/feroxbuster", methods=["POST"])
+def feroxbuster():
+    """Execute feroxbuster recursive content discovery."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        wordlist = params.get("wordlist", "/usr/share/wordlists/dirb/common.txt")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("feroxbuster called without URL parameter")
+            return jsonify({
+                "error": "URL parameter is required"
+            }), 400
+
+        # --no-state disables the .state resume-file dump on Ctrl-C/timeout
+        command = ["feroxbuster", "-u", url, "-w", wordlist, "--no-state"]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in feroxbuster endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/sslscan", methods=["POST"])
+def sslscan():
+    """Execute sslscan TLS/SSL configuration audit."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("sslscan called without target parameter")
+            return jsonify({
+                "error": "Target parameter is required (host or host:port)"
+            }), 400
+
+        command = ["sslscan", "--no-colour"]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        command.append(target)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in sslscan endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/hashcat", methods=["POST"])
+def hashcat():
+    """Execute hashcat offline hash cracking."""
+    try:
+        params = request.json
+        hash_file = params.get("hash_file", "")
+        hash_type = params.get("hash_type", "")
+        attack_mode = params.get("attack_mode", "0")
+        wordlist = params.get("wordlist", "/usr/share/wordlists/rockyou.txt")
+        additional_args = params.get("additional_args", "")
+
+        if not hash_file:
+            logger.warning("hashcat called without hash_file parameter")
+            return jsonify({
+                "error": "Hash file parameter is required"
+            }), 400
+
+        if not hash_type:
+            logger.warning("hashcat called without hash_type parameter")
+            return jsonify({
+                "error": "hash_type parameter is required (e.g. 0 for MD5, 1000 for NTLM)"
+            }), 400
+
+        # hash_type and attack_mode must be numeric (hashcat -m / -a)
+        if not re.match(r'^\d+$', str(hash_type)):
+            return jsonify({"error": "Invalid hash_type; must be a number"}), 400
+
+        if not re.match(r'^\d+$', str(attack_mode)):
+            return jsonify({"error": "Invalid attack_mode; must be a number"}), 400
+
+        command = ["hashcat", "-m", str(hash_type), "-a", str(attack_mode), hash_file, wordlist]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in hashcat endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/masscan", methods=["POST"])
+def masscan():
+    """Execute masscan fast port discovery (requires root for raw sockets)."""
+    try:
+        params = request.json
+        target = params.get("target", "")
+        ports = params.get("ports", "1-1000")
+        rate = params.get("rate", "1000")
+        additional_args = params.get("additional_args", "")
+
+        if not target:
+            logger.warning("masscan called without target parameter")
+            return jsonify({
+                "error": "Target parameter is required"
+            }), 400
+
+        if not re.match(r'^\d+$', str(rate)):
+            return jsonify({"error": "Invalid rate; must be a number"}), 400
+
+        command = ["masscan", target, "-p", ports, "--rate", str(rate)]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in masscan endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
+@app.route("/api/tools/dnsrecon", methods=["POST"])
+def dnsrecon():
+    """Execute dnsrecon DNS enumeration."""
+    try:
+        params = request.json
+        domain = params.get("domain", "")
+        scan_type = params.get("scan_type", "")
+        name_server = params.get("name_server", "")
+        additional_args = params.get("additional_args", "")
+
+        if not domain:
+            logger.warning("dnsrecon called without domain parameter")
+            return jsonify({
+                "error": "Domain parameter is required"
+            }), 400
+
+        command = ["dnsrecon", "-d", domain]
+
+        if scan_type:
+            command += ["-t", scan_type]
+
+        if name_server:
+            command += ["-n", name_server]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in dnsrecon endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
 
 # Health check endpoint
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint."""
     # Check if essential tools are installed
-    essential_tools = ["nmap", "gobuster", "dirb", "nikto", "ffuf"]
+    essential_tools = ["nmap", "gobuster", "dirb", "nikto", "ffuf", "nuclei"]
     tools_status = {}
     
     for tool in essential_tools:
