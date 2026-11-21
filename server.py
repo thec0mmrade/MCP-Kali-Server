@@ -851,6 +851,86 @@ def dnsrecon():
             "error": f"Server error: {str(e)}"
         }), 500
 
+@app.route("/api/tools/tshark", methods=["POST"])
+def tshark():
+    """Capture or analyze network traffic with tshark (Wireshark CLI)."""
+    try:
+        params = request.json
+        input_file = params.get("input_file", "")
+        interface = params.get("interface", "")
+        display_filter = params.get("display_filter", "")
+        capture_filter = params.get("capture_filter", "")
+        packet_count = params.get("packet_count", "")
+        duration = params.get("duration", "")
+        fields = params.get("fields", "")
+        additional_args = params.get("additional_args", "")
+
+        # Exactly one of input_file (read mode) or interface (live mode)
+        if not input_file and not interface:
+            logger.warning("tshark called without input_file or interface")
+            return jsonify({
+                "error": "Either input_file (read mode) or interface (live capture) is required"
+            }), 400
+
+        if input_file and interface:
+            return jsonify({
+                "error": "Provide only one of input_file or interface, not both"
+            }), 400
+
+        if input_file and capture_filter:
+            return jsonify({
+                "error": "capture_filter is only valid for live capture (interface), not read mode"
+            }), 400
+
+        # Numeric safeguards
+        if packet_count and not re.match(r'^\d+$', str(packet_count)):
+            return jsonify({"error": "Invalid packet_count; must be a number"}), 400
+
+        if duration and not re.match(r'^\d+$', str(duration)):
+            return jsonify({"error": "Invalid duration; must be a number of seconds"}), 400
+
+        if interface and not re.match(r'^[A-Za-z0-9_.:-]+$', interface):
+            return jsonify({"error": "Invalid interface name"}), 400
+
+        command = ["tshark"]
+
+        if input_file:
+            command += ["-r", input_file]
+        else:
+            command += ["-i", interface]
+            if capture_filter:
+                command += ["-f", capture_filter]
+            # Enforce an autostop so an unbounded live capture never runs until
+            # the server command timeout.
+            if not packet_count and not duration:
+                duration = "30"
+
+        if display_filter:
+            command += ["-Y", display_filter]
+
+        if packet_count:
+            command += ["-c", str(packet_count)]
+
+        if duration:
+            command += ["-a", f"duration:{duration}"]
+
+        if fields:
+            command += ["-T", "fields"]
+            for field in [f.strip() for f in fields.split(",") if f.strip()]:
+                command += ["-e", field]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in tshark endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
 
 # Health check endpoint
 @app.route("/health", methods=["GET"])
