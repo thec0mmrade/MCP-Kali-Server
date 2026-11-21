@@ -634,6 +634,239 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         }
         return kali_client.safe_post("api/tools/tshark", data)
 
+    @mcp.tool(name="searchsploit")
+    def searchsploit(query: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Search the local Exploit-DB archive (offline).
+
+        Args:
+            query: Search terms, e.g. "apache 2.4" or a product/version from a scan
+            additional_args: Additional searchsploit arguments (e.g. "--cve 2021-41773",
+                             "-w" for exploit-db.com URLs, "--json")
+
+        Returns:
+            Matching exploit titles and paths. Runs against the local database, so
+            no network is needed.
+        """
+        data = {"query": query, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/searchsploit", data)
+
+    @mcp.tool(name="smbmap_scan")
+    def smbmap_scan(host: str, username: str = "", password: str = "", domain: str = "", share: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Enumerate SMB shares and access permissions with smbmap.
+
+        Args:
+            host: Target IP or FQDN
+            username: Username (omit for a null/guest session)
+            password: Password or NTLM hash
+            domain: Domain name (default WORKGROUP)
+            share: Specific share to target
+            additional_args: Additional smbmap arguments (e.g. "-r" to list contents,
+                             "-x <cmd>" to execute)
+
+        Returns:
+            Share listing with access levels
+        """
+        data = {
+            "host": host,
+            "username": username,
+            "password": password,
+            "domain": domain,
+            "share": share,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/smbmap", data)
+
+    @mcp.tool(name="commix_scan")
+    def commix_scan(url: str, data: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Automated OS command-injection detection/exploitation with commix.
+
+        Args:
+            url: The target URL (mark the injection point, e.g. http://t/?x=INJECT)
+            data: POST data string
+            additional_args: Additional commix arguments
+
+        Returns:
+            Exploitation results. Runs with --batch (no prompts); can be slow and
+            may hit the server timeout (partial results are returned).
+        """
+        post_data = {"url": url, "data": data, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/commix", post_data)
+
+    @mcp.tool(name="httpx_probe")
+    def httpx_probe(target: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Fast HTTP probing with httpx-toolkit (status code, title, tech detection).
+
+        Args:
+            target: URL or host to probe
+            additional_args: Additional httpx arguments (e.g. "-path /admin",
+                             "-follow-redirects", "-json")
+
+        Returns:
+            Probe results. Runs with -sc -title -td -nc -duc by default.
+        """
+        data = {"target": target, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/httpx", data)
+
+    @mcp.tool(name="theharvester_scan")
+    def theharvester_scan(domain: str, source: str = "duckduckgo", limit: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Gather OSINT (emails, subdomains) with theHarvester.
+
+        Args:
+            domain: Target company name or domain
+            source: Data source (-b), e.g. duckduckgo, bing, crtsh, otx, rapiddns.
+                    Some sources require API keys.
+            limit: Max results to fetch (-l)
+            additional_args: Additional theHarvester arguments
+
+        Returns:
+            Discovered hosts/emails. Makes outbound requests and can be slow.
+        """
+        data = {
+            "domain": domain,
+            "source": source,
+            "limit": limit,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/theharvester", data)
+
+    @mcp.tool(name="impacket_run")
+    def impacket_run(script: str, target: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Run an allow-listed impacket script for AD/Windows enumeration & creds.
+
+        Allowed scripts (non-interactive only): secretsdump, GetNPUsers,
+        GetUserSPNs, getTGT, getST, lookupsid, samrdump, rpcdump, rpcmap,
+        findDelegation, GetADUsers, GetADComputers, DumpNTLMInfo, getArch, net.
+
+        Interactive shells (psexec, wmiexec, smbexec, mssqlclient, smbclient, ...)
+        are intentionally NOT exposed — they would hang a one-shot API call.
+
+        Args:
+            script: The impacket script name (without the "impacket-" prefix)
+            target: Connection/target spec, usually "[domain/]user[:password]@host"
+            additional_args: Additional arguments for the script (e.g.
+                             "-dc-ip 10.0.0.1", "-no-pass", "-request")
+
+        Returns:
+            Script output
+        """
+        data = {"script": script, "target": target, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/impacket", data)
+
+    @mcp.tool(name="wafw00f_scan")
+    def wafw00f_scan(url: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Fingerprint web application firewalls with wafw00f.
+
+        Args:
+            url: The target URL
+            additional_args: Additional wafw00f arguments (e.g. "-a" to test all)
+
+        Returns:
+            Detected WAF (if any)
+        """
+        data = {"url": url, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/wafw00f", data)
+
+    @mcp.tool(name="hashid_identify")
+    def hashid_identify(hash_value: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Identify the type of a hash (shows hashcat -m and john formats).
+
+        Args:
+            hash_value: The hash string to identify
+            additional_args: Additional hashid arguments (e.g. "-e" for extended)
+
+        Returns:
+            Candidate hash types with their hashcat/john modes — feed these into
+            hashcat_crack or john_crack.
+        """
+        data = {"hash_value": hash_value, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/hashid", data)
+
+    @mcp.tool(name="exiftool_scan")
+    def exiftool_scan(file: str, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Extract metadata from a file with exiftool.
+
+        Args:
+            file: Path to the file on the server
+            additional_args: Additional exiftool arguments (e.g. "-json", "-gps:all")
+
+        Returns:
+            File metadata
+        """
+        data = {"file": file, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/exiftool", data)
+
+    @mcp.tool(name="binwalk_scan")
+    def binwalk_scan(file: str, extract: bool = False, additional_args: str = "") -> Dict[str, Any]:
+        """
+        Analyze a binary/firmware image for embedded data with binwalk.
+
+        Args:
+            file: Path to the file on the server
+            extract: If true, extract detected files (-e) — writes files on the server
+            additional_args: Additional binwalk arguments
+
+        Returns:
+            Signature scan results
+        """
+        data = {"file": file, "extract": extract, "additional_args": additional_args}
+        return kali_client.safe_post("api/tools/binwalk", data)
+
+    @mcp.tool(name="steghide")
+    def steghide(mode: str, cover_file: str, passphrase: str = "", extract_file: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Extract data from or inspect a steganographic file with steghide.
+
+        Args:
+            mode: "extract" to pull embedded data, or "info" to inspect the file
+            cover_file: Path to the stego/cover file (.jpg, .bmp, .wav, .au)
+            passphrase: Passphrase (empty string is passed explicitly so the tool
+                        never blocks on an interactive prompt)
+            extract_file: Output path for extracted data (extract mode; -xf)
+            additional_args: Additional steghide arguments
+
+        Returns:
+            Extracted data info or file details
+        """
+        data = {
+            "mode": mode,
+            "cover_file": cover_file,
+            "passphrase": passphrase,
+            "extract_file": extract_file,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/steghide", data)
+
+    @mcp.tool(name="cewl_generate")
+    def cewl_generate(url: str, depth: str = "", min_length: str = "", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Generate a custom wordlist by crawling a site with cewl.
+
+        Args:
+            url: The target URL to spider
+            depth: Crawl depth (-d)
+            min_length: Minimum word length (-m)
+            additional_args: Additional cewl arguments (e.g. "-w out.txt", "--with-numbers")
+
+        Returns:
+            Generated wordlist. Makes outbound requests to the target.
+        """
+        data = {
+            "url": url,
+            "depth": depth,
+            "min_length": min_length,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/cewl", data)
+
     @mcp.tool(name="server_health")
     def server_health() -> Dict[str, Any]:
         """
