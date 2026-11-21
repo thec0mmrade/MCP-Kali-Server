@@ -221,6 +221,28 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         }
         return kali_client.safe_post("api/tools/dirb", data)
 
+    @mcp.tool(name="ffuf_scan")
+    def ffuf_scan(url: str, wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
+        """
+        Execute ffuf web fuzzer.
+
+        Args:
+            url: The target URL, with the FUZZ keyword marking the injection point
+                 (e.g. http://target/FUZZ or http://target/?p=FUZZ)
+            wordlist: Path to wordlist file
+            additional_args: Additional ffuf arguments (may also contain the FUZZ keyword,
+                             e.g. -H "Host: FUZZ.target")
+
+        Returns:
+            Scan results
+        """
+        data = {
+            "url": url,
+            "wordlist": wordlist,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/ffuf", data)
+
     @mcp.tool(name="nikto_scan")
     def nikto_scan(target: str, additional_args: str = "") -> Dict[str, Any]:
         """
