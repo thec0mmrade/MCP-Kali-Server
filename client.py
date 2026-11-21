@@ -585,6 +585,55 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         }
         return kali_client.safe_post("api/tools/dnsrecon", data)
 
+    @mcp.tool(name="tshark")
+    def tshark(
+        input_file: str = "",
+        interface: str = "",
+        display_filter: str = "",
+        capture_filter: str = "",
+        packet_count: str = "",
+        duration: str = "",
+        fields: str = "",
+        additional_args: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Capture or analyze network traffic with tshark (the Wireshark CLI).
+
+        Provide EXACTLY ONE of:
+          - input_file: path to a .pcap/.pcapng file to read/dissect (read mode), or
+          - interface:  network interface to capture on, e.g. "eth0", "lo", "any"
+                        (live mode).
+
+        Args:
+            input_file: Capture file to analyze (read mode, tshark -r)
+            interface: Interface to capture on (live mode, tshark -i)
+            display_filter: Wireshark display filter (-Y), e.g. "http" or
+                            "ip.addr == 10.0.0.5 && tcp.port == 443". Both modes.
+            capture_filter: BPF capture filter (-f), e.g. "tcp port 80". LIVE MODE ONLY.
+            packet_count: Stop after N packets (-c). Both modes.
+            duration: Live capture autostop in seconds (-a duration:N).
+            fields: Comma-separated field names for tabular output
+                    (e.g. "frame.number,ip.src,ip.dst,tcp.port"); enables -T fields.
+            additional_args: Additional tshark arguments.
+
+        Returns:
+            Capture/analysis output. Note: a live capture with no packet_count or
+            duration is automatically capped at 30 seconds so it cannot block.
+            Live capture requires capture privileges (dumpcap caps / wireshark
+            group); without them, use read mode on an existing capture file.
+        """
+        data = {
+            "input_file": input_file,
+            "interface": interface,
+            "display_filter": display_filter,
+            "capture_filter": capture_filter,
+            "packet_count": packet_count,
+            "duration": duration,
+            "fields": fields,
+            "additional_args": additional_args
+        }
+        return kali_client.safe_post("api/tools/tshark", data)
+
     @mcp.tool(name="server_health")
     def server_health() -> Dict[str, Any]:
         """
