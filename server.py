@@ -268,6 +268,41 @@ def dirb():
             "error": f"Server error: {str(e)}"
         }), 500
 
+@app.route("/api/tools/ffuf", methods=["POST"])
+def ffuf():
+    """Execute ffuf web fuzzer with the provided parameters."""
+    try:
+        params = request.json
+        url = params.get("url", "")
+        wordlist = params.get("wordlist", "/usr/share/wordlists/dirb/common.txt")
+        additional_args = params.get("additional_args", "")
+
+        if not url:
+            logger.warning("ffuf called without URL parameter")
+            return jsonify({
+                "error": "URL parameter is required"
+            }), 400
+
+        if "FUZZ" not in url and "FUZZ" not in additional_args:
+            logger.warning("ffuf called without a FUZZ keyword")
+            return jsonify({
+                "error": "A FUZZ keyword is required in url or additional_args to mark the injection point"
+            }), 400
+
+        command = ["ffuf", "-u", url, "-w", wordlist]
+
+        if additional_args:
+            command += shlex.split(additional_args)
+
+        result = execute_command(command)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in ffuf endpoint: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Server error: {str(e)}"
+        }), 500
+
 @app.route("/api/tools/nikto", methods=["POST"])
 def nikto():
     """Execute nikto with the provided parameters."""
@@ -525,7 +560,7 @@ def enum4linux():
 def health_check():
     """Health check endpoint."""
     # Check if essential tools are installed
-    essential_tools = ["nmap", "gobuster", "dirb", "nikto"]
+    essential_tools = ["nmap", "gobuster", "dirb", "nikto", "ffuf"]
     tools_status = {}
     
     for tool in essential_tools:
